@@ -1,0 +1,80 @@
+services:
+  vote:
+    build: ./vote
+    ports:
+      - "8080:8080"
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  result:
+    build: ./result
+    ports:
+      - "8081:8081"
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build: ./worker
+    networks:
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  redis:
+    image: redis:7
+    container_name: devops-redis
+    volumes:
+      - ./healthchecks:/healthchecks
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "bash", "/healthchecks/redis.sh"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:15
+    container_name: devops-postgres
+    volumes:
+      - ./healthchecks:/healthchecks
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: votes
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "bash", "/healthchecks/postgres.sh"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  seed:
+    build: ./seed-data
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - seed
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
